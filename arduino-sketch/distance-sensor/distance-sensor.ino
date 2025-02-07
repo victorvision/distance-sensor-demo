@@ -30,16 +30,16 @@ float distMaxCm = 10.0;       // Maximum distance limit in cm
 float distMinCm = 0.0;        // Minimum distance limit in cm
 float currentDistance = 0.0;  // Variable for the measured distance
 
+
 // General variables
 
-unsigned long timeNow = 0;
 const int GREEN_LED_PIN = 9;
 const int RED_LED_PIN = 10;
 
 // Filter variables
-const int FILTER_SIZE = 180;  // Size of the filter buffer
+const int FILTER_SIZE = 180;        // Size of the filter buffer
 float distanceBuffer[FILTER_SIZE];  // Buffer to store distance readings
-int bufferIndex = 0;  // Index to keep track of the current position in the buffer
+int bufferIndex = 0;                // Index to keep track of the current position in the buffer
 
 // Initial setup
 void setup() {
@@ -50,36 +50,35 @@ void setup() {
   pinMode(RED_LED_PIN, OUTPUT);
   delay(3000);  // Initialization delay
 
-    // Initialize the distance buffer with zeros
+  // Initialize the distance buffer with zeros
   for (int i = 0; i < FILTER_SIZE; i++) {
     distanceBuffer[i] = 0.0;
   }
-
 }
 
 // Main program (loop)
 void loop() {
 
-    // Request the distance in centimeters
-    currentDistance = RequestDist();
+  // Request the distance in centimeters
+  currentDistance = RequestDist();
 
-    // Add the new distance reading to the buffer
-    distanceBuffer[bufferIndex] = currentDistance;
-    bufferIndex = (bufferIndex + 1) % FILTER_SIZE;  // Circular buffer
+  // Add the new distance reading to the buffer
+  distanceBuffer[bufferIndex] = currentDistance;
+  bufferIndex = (bufferIndex + 1) % FILTER_SIZE;  // Circular buffer
 
-    // Calculate the average distance
-    float filteredDistance = calculateAverageDistance();
+  // Calculate the average distance
+  float filteredDistance = calculateAverageDistance();
 
-    // Check if distance limits are exceeded and update the background
-    if (filteredDistance > distMaxCm || filteredDistance < distMinCm) {
-      activateRedBackground();  // Out of limits
-    } else {
-      activateGreenBackground();  // Within limits
-    }
+  // Check if distance limits are exceeded and update the background
+  if (filteredDistance > distMaxCm || filteredDistance < distMinCm) {
+    activateRedBackground();  // Out of limits
+  } else {
+    activateGreenBackground();  // Within limits
+  }
 
-    // Send the filtered distance to the display
-    sendDistance(filteredDistance);
-  
+  // Send the filtered distance to the display
+  sendDistance(filteredDistance);
+
 
   // Process received packets
   processReceivedPackets();
