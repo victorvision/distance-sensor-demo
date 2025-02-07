@@ -1,119 +1,236 @@
-# RGB LED DEMO - DOCUMENTATION
+# DISTANCE SENSOR DEMO - DOCUMENTATION
 
 ## 1. What the Demo Does
 
-The RGB LED demo illustrates how to control an RGB LED's colors using an external display with sliders for red, green, and blue channels. It uses the Lumen Protocol to handle serial communication, updating the LED's color in real-time based on user input. Additionally, it displays the current color as an RGB-565 value and its hexadecimal representation on the display.
+The **Distance Sensor Demo** demonstrates how to measure distances using an **HC-SR04 ultrasonic sensor** and visualize the data on an external display. The project focuses on **real-time communication between the display and the Arduino** through the Lumen Protocol.  
 
-This project demonstrates interactive control of hardware components (LED) using live data sent via serial communication.
+The display receives **live distance readings**, and based on configurable alarm thresholds, it changes its background color:
+- **Green** (within the allowed range)
+- **Red** (out of bounds)
+
+Additionally, the user can set **minimum and maximum alarm distances** via the display.
 
 ## 2. Purpose
 
-The primary purpose of this project is to demonstrate how to receive serial packets to control hardware components and visually represent those changes on an external display. It's useful for learning real-time data-driven hardware control and integrating displays for enhanced interactivity.
+This project is designed to showcase the **display’s ability to communicate** with external hardware, providing:
+- **Real-time data exchange** between the sensor and the display.
+- **Dynamic background color updates** based on threshold values.
+- **User-defined distance limits** sent from the display.
+
+This demo is ideal for applications requiring distance monitoring, such as security systems, robotics, and object detection.
 
 ## 3. How to Use
 
 ### 3.1 Setting Up the Hardware
 
-To set up the RGB LED system:
+1. **Connect the HC-SR04 ultrasonic sensor** to the Arduino:
+   - **TRIG Pin** → Connect to **Pin 3** on the Arduino.
+   - **ECHO Pin** → Connect to **Pin 2** on the Arduino.
+   - **VCC** → Connect to **5V**.
+   - **GND** → Connect to **GND**.
 
-1. Connect an RGB LED's pins to the following Arduino pins:
-   - **Red**: Pin 9 (via a 220Ω resistor)
-   - **Green**: Pin 10 (via a 220Ω resistor)
-   - **Blue**: Pin 11 (via a 220Ω resistor)
-2. Connect the cathode (common ground) of the RGB LED to the Arduino's GND pin.
-3. Connect the display to the Arduino via a serial connection and ensure proper power supply (5V or 12V).
+2. **Connect LEDs for visual feedback**:
+   - **Green LED** → **Pin 9** (ON when within range).
+   - **Red LED** → **Pin 10** (ON when out of range).
 
-### 3.2 Sending Commands from the Display
-
-The display provides sliders for red, green, and blue channels. Adjusting these sliders sends serial packets with intensity values (0-255) for each channel:
-
-### 3.3 Power Supply
-
-- The Arduino can be powered via USB (5V) or an external 5V power source.
-- The display requires a compatible power source (5V) connected to its +Vin and GND pins.
+3. **Connect the display** to the Arduino via a serial connection.
 
 ## 4. Schematic Circuit
 
-Below is the schematic for the RGB LED setup:
+Below is the **schematic circuit** for the Distance Sensor Demo:
 
-![Schematic Circuit](schematic-circuit/led-rgb-schematic-circuit.svg)
+![Distance Sensor Schematic](schematic-circuit/distance-sensor-schematic-circuit.svg)
 
+## 5. Functionality Explanation
 
-## 5. Code Overview
+1. **Real-Time Communication**:
+   - The display communicates with the Arduino using the **Lumen Protocol**.
+   - The Arduino sends **live distance readings** to the display.
+   - The display can send **custom alarm thresholds** to the Arduino.
 
-The following C++ code is used for the RGB LED demo. It initializes communication via the Lumen Protocol, updates LED colors based on slider inputs, and sends the current color back to the display in HEX format.
+2. **Distance Measurement**:
+   - The **HC-SR04** measures the time taken for an ultrasonic pulse to reflect back.
+   - The value is converted into centimeters and sent to the display.
 
-### Key Features:
-- **Serial Communication**: Handled by `lumen_available()` and `lumen_get_first_packet()`.
-- **RGB LED Control**: Adjusts PWM values on pins 9, 10, and 11 based on slider inputs.
-- **Color Representation**:
-  - **RGB-565**: A 16-bit compact format sent to the display.
-  - **HEX**: A standard color code for visualization.
+3. **Alarm System**:
+   - If the measured distance exceeds **Max Distance** or falls below **Min Distance**, the **display background turns red**.
+   - If the distance is within limits, the **background remains green**.
 
-```cpp
-#include "LumenProtocol.h"
+## 6. Code Overview
 
-extern "C" void lumen_write_bytes(uint8_t* data, uint32_t length) {
-  Serial.write(data, length);
-}
+    ```cpp
+    #include "LumenProtocol.h"
 
-extern "C" uint16_t lumen_get_byte() {
-  if (Serial.available()) {
-    return Serial.read();
-  }
-  return DATA_NULL;
-}
+    extern "C" void lumen_write_bytes(uint8_t* data, uint32_t length) {
+      Serial.write(data, length);
+    }
 
-#define LCM_BAUD_RATE 115200
-const uint8_t RED_PIN = 9, GREEN_PIN = 10, BLUE_PIN = 11;
-const uint8_t RED_SLIDER_ADDRESS = 30, GREEN_SLIDER_ADDRESS = 50, BLUE_SLIDER_ADDRESS = 40;
-const uint8_t PALETTE_COLORS_ADDRESS = 206, HEX_COLOR_DISPLAY_ADDRESS = 200;
+    extern "C" uint16_t lumen_get_byte() {
+      if (Serial.available()) {
+        return Serial.read();
+      }
+      return DATA_NULL;
+    }
 
-char hexColorString[10];
-uint8_t colorLedRed = 0, colorLedGreen = 0, colorLedBlue = 0;
-uint16_t color565Palette = 0;
-lumen_packet_t paletteColors = { PALETTE_COLORS_ADDRESS, kS16 };
-lumen_packet_t hexColorDisplay = { HEX_COLOR_DISPLAY_ADDRESS, kString };
+    // Definition of addresses and packets
+    const uint16_t DISTANCE_ADDRESS = 500;
+    const uint16_t ALARM_DIST_MAX_ADDRESS = 520;
+    const uint16_t ALARM_DIST_MIN_ADDRESS = 530;
+    const uint16_t CHANGE_BACKGROUND_COLOR_ADDRESS = 124;
 
-void updatePaletteColor() {
-  color565Palette = ((colorLedRed >> 3) << 11) | ((colorLedGreen >> 2) << 5) | (colorLedBlue >> 3);
-  paletteColors.data._s16 = color565Palette;
-  lumen_write_packet(&paletteColors);
-}
+    // Packets for the measured distance and alarms
+    lumen_packet_t Distance = { DISTANCE_ADDRESS, kFloat };
+    lumen_packet_t AlarmDistMax = { ALARM_DIST_MAX_ADDRESS, kS32 };
+    lumen_packet_t AlarmDistMin = { ALARM_DIST_MIN_ADDRESS, kS32 };
+    lumen_packet_t ChangeBackgroundColorPacket = { CHANGE_BACKGROUND_COLOR_ADDRESS, kBool };
 
-void updateHexColor() {
-  snprintf(hexColorString, sizeof(hexColorString), "#%02X%02X%02X", colorLedRed, colorLedGreen, colorLedBlue);
-  strncpy(hexColorDisplay.data._string, hexColorString, sizeof(hexColorDisplay.data._string));
-  lumen_write_packet(&hexColorDisplay);
-}
+    // Distance sensor variables
+    const int TRIG_PIN = 3;
+    const int ECHO_PIN = 2;
+    float distMaxCm = 10.0;       // Maximum distance limit in cm
+    float distMinCm = 0.0;        // Minimum distance limit in cm
+    float currentDistance = 0.0;  // Variable for the measured distance
 
-void processPacket(lumen_packet_t* packet) {
-  if (packet->address == RED_SLIDER_ADDRESS) {
-    colorLedRed = packet->data._s32;
-    analogWrite(RED_PIN, colorLedRed);
-  } else if (packet->address == GREEN_SLIDER_ADDRESS) {
-    colorLedGreen = packet->data._s32;
-    analogWrite(GREEN_PIN, colorLedGreen);
-  } else if (packet->address == BLUE_SLIDER_ADDRESS) {
-    colorLedBlue = packet->data._s32;
-    analogWrite(BLUE_PIN, colorLedBlue);
-  }
-  updatePaletteColor();
-  updateHexColor();
-}
+    // General variables
 
-void setup() {
-  delay(1000);
-  Serial.begin(LCM_BAUD_RATE);
-  pinMode(RED_PIN, OUTPUT);
-  pinMode(GREEN_PIN, OUTPUT);
-  pinMode(BLUE_PIN, OUTPUT);
-}
+    unsigned long timeNow = 0;
+    const int GREEN_LED_PIN = 9;
+    const int RED_LED_PIN = 10;
 
-void loop() {
-  while (lumen_available() > 0) {
-    lumen_packet_t* currentPacket = lumen_get_first_packet();
-    processPacket(currentPacket);
-  }
-}
+    // Filter variables
+    const int FILTER_SIZE = 180;  // Size of the filter buffer
+    float distanceBuffer[FILTER_SIZE];  // Buffer to store distance readings
+    int bufferIndex = 0;  // Index to keep track of the current position in the buffer
 
+    // Initial setup
+    void setup() {
+      Serial.begin(115200);
+      pinMode(TRIG_PIN, OUTPUT);
+      pinMode(ECHO_PIN, INPUT);
+      pinMode(GREEN_LED_PIN, OUTPUT);
+      pinMode(RED_LED_PIN, OUTPUT);
+      delay(3000);  // Initialization delay
+
+        // Initialize the distance buffer with zeros
+      for (int i = 0; i < FILTER_SIZE; i++) {
+        distanceBuffer[i] = 0.0;
+      }
+
+    }
+
+    // Main program (loop)
+    void loop() {
+
+        // Request the distance in centimeters
+        currentDistance = RequestDist();
+
+        // Add the new distance reading to the buffer
+        distanceBuffer[bufferIndex] = currentDistance;
+        bufferIndex = (bufferIndex + 1) % FILTER_SIZE;  // Circular buffer
+
+        // Calculate the average distance
+        float filteredDistance = calculateAverageDistance();
+
+        // Check if distance limits are exceeded and update the background
+        if (filteredDistance > distMaxCm || filteredDistance < distMinCm) {
+          activateRedBackground();  // Out of limits
+        } else {
+          activateGreenBackground();  // Within limits
+        }
+
+        // Send the filtered distance to the display
+        sendDistance(filteredDistance);
+      
+
+      // Process received packets
+      processReceivedPackets();
+    }
+
+    // Processes the received packets and updates as needed
+    void processReceivedPackets() {
+      while (lumen_available() > 0) {
+        lumen_packet_t* currentPacket = lumen_get_first_packet();
+
+        // Update the maximum distance value
+        if (currentPacket->address == ALARM_DIST_MAX_ADDRESS) {
+          updateAlarmDistanceMax(currentPacket->data._s32);
+        }
+
+        // Update the minimum distance value
+        if (currentPacket->address == ALARM_DIST_MIN_ADDRESS) {
+          updateAlarmDistanceMin(currentPacket->data._s32);
+        }
+      }
+    }
+
+    // Updates the maximum distance value and sends it
+    void updateAlarmDistanceMax(float valueAlarm) {
+      distMaxCm = valueAlarm;  // Update directly in cm
+
+      // Update and send the maximum distance packet
+      sendAlarmDistanceMax();
+    }
+
+    // Updates the minimum distance value and sends it
+    void updateAlarmDistanceMin(float valueAlarm) {
+      distMinCm = valueAlarm;  // Update directly in cm
+
+      // Update and send the minimum distance packet
+      sendAlarmDistanceMin();
+    }
+
+    // Sends the updated maximum distance
+    void sendAlarmDistanceMax() {
+      AlarmDistMax.data._s32 = distMaxCm;
+      lumen_write_packet(&AlarmDistMax);  // Send the maximum distance packet
+    }
+
+    // Sends the updated minimum distance
+    void sendAlarmDistanceMin() {
+      AlarmDistMin.data._s32 = distMinCm;
+      lumen_write_packet(&AlarmDistMin);  // Send the minimum distance packet
+    }
+
+    // Sends the measured distance
+    void sendDistance(float value) {
+      Distance.data._float = value;   // Write the distance into the packet
+      lumen_write_packet(&Distance);  // Send the distance packet
+    }
+
+    // Function to read the distance from the ultrasonic sensor (in cm)
+    float RequestDist() {
+      long duration;  // ECHO time
+      digitalWrite(TRIG_PIN, LOW);
+      delayMicroseconds(2);
+      digitalWrite(TRIG_PIN, HIGH);
+      delayMicroseconds(10);
+      digitalWrite(TRIG_PIN, LOW);
+      duration = pulseIn(ECHO_PIN, HIGH);  // Time the Echo pin was HIGH
+
+      return duration / 29.0 / 2.0;  // Convert to centimeters
+    }
+
+    // Activates the green background (within limits)
+    void activateGreenBackground() {
+      digitalWrite(GREEN_LED_PIN, HIGH);
+      digitalWrite(RED_LED_PIN, LOW);
+      ChangeBackgroundColorPacket.data._bool = false;
+      lumen_write_packet(&ChangeBackgroundColorPacket);
+    }
+
+    // Activates the red background (out of bounds)
+    void activateRedBackground() {
+      digitalWrite(GREEN_LED_PIN, LOW);
+      digitalWrite(RED_LED_PIN, HIGH);
+      ChangeBackgroundColorPacket.data._bool = true;
+      lumen_write_packet(&ChangeBackgroundColorPacket);
+    }
+
+    // Calculates the average distance from the buffer
+    float calculateAverageDistance() {
+      float sum = 0.0;
+      for (int i = 0; i < FILTER_SIZE; i++) {
+        sum += distanceBuffer[i];
+      }
+      return sum / FILTER_SIZE;
+    }
